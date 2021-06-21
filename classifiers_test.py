@@ -1,3 +1,6 @@
+import sys
+sys.path.insert(0,'..')
+
 from toolbox.evaluation.classifiers import confusion_matrix, compute_indices
 from toolbox.learning.linear.ols import OrdinaryLeastSquare
 from toolbox.learning.neural_networks.supervised.models.elm import ExtremeLearningMachine
@@ -7,7 +10,7 @@ from toolbox.learning.svm.LSSVC_GPU import LSSVC_GPU
 from toolbox.preprocessing.data_module import *
 from toolbox.utils.dataset import dataset_pipeline
 
-# Set Experiment
+# Set experiment
 
 experiment = {
        'DS'  : 'iris',                                    # Dataset
