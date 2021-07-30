@@ -1,30 +1,48 @@
+# 0. Import Libraries
+
 import sys
 sys.path.insert(0,'..')
 
-from toolbox.evaluation.classifiers import confusion_matrix, compute_indices
+from toolbox.datasets import classification_data_loader
+
+from toolbox.preprocessing import hold_out
+from toolbox.preprocessing.encoding import class_label_encode
+from toolbox.preprocessing.normalization import normalize
+
+from toolbox.evaluation.classification import confusion_matrix, compute_indices
+
 from toolbox.learning.linear.ols import OrdinaryLeastSquare
 from toolbox.learning.neural_networks.supervised.models.elm import ExtremeLearningMachine
 from toolbox.learning.neural_networks.supervised.models.mlp import MultiLayerPerceptron
 from toolbox.learning.svm.LSSVC import LSSVC
 from toolbox.learning.svm.LSSVC_GPU import LSSVC_GPU
-from toolbox.preprocessing.data_module import *
-from toolbox.utils.dataset import dataset_pipeline
 
-# Set experiment
+# 1. Load dataSet
 
-experiment = {
-       'DS'  : 'iris',                                    # Dataset
-       'CV'  : {'type': 'hold-out', 'train_size': 0.8},  # Hold-out cross validation with 5 repetitions Tr/Te = 80/20
-       'PP'  : {'norm_type': 'z_score', 'label_encoding': 'binary'},
-       'OUT' : {'file_name': 'teste_1', 'file_path': ''}
-}
+X_raw, Y = classification_data_loader.load_dataset(dataset='iris')
 
-# Load Data Set
+# 2. Get dataset's info (number of samples, attributes, classes)
 
-X_tr, y_tr, X_ts, y_ts = dataset_pipeline(s_info = experiment)
+ds_info = classification_data_loader.extract_info(X_raw, Y)
+N = ds_info['n']
+p = ds_info['p']
+n_classes = ds_info['n_classes']
 
-p = X_tr.shape[1]
-n_classes = y_tr.shape[1]
+# 3. Pre-process labels
+
+Y = class_label_encode(Y, ds_info['n_classes'], label_type='binary')
+
+# 4. Split Data Between Train and Test 
+
+X_tr_raw, y_tr, X_ts_raw, y_ts = hold_out.random_subsampling(X = X_raw, Y = Y, 
+                                                             train_size=0.8, seed=1)
+
+# 5. Normalize data
+
+X_tr = normalize(X_tr_raw, norm_type='z_score')
+X_ts = normalize(X_ts_raw, norm_type='z_score', X_ref = X_tr_raw)
+
+# 6. Model Build and Label Estimation
 
 # OLS experimentation
 ols = OrdinaryLeastSquare()
@@ -39,7 +57,8 @@ y_elm = elm.predict(X_ts, in_row=True)
 # MLP experimentation
 NPL = [p, 4, n_classes]     # MLP layer structure
 mlp = MultiLayerPerceptron()
-mlp.fit(X=X_tr, Y=y_tr, Xv=X_tr, Yv=y_tr, NPL=NPL, epochs=20, n_batches=1, alpha=1e-2, decay=0, momentum=0, l2=0, dropout_percent=0)
+mlp.fit(X=X_tr, Y=y_tr, Xv=X_tr, Yv=y_tr, NPL=NPL, epochs=20, 
+        n_batches=1, alpha=1e-2, decay=0, momentum=0, l2=0, dropout_percent=0)
 y_mlp = mlp.predict(X_ts)[-1]
 
 # LSSVC experimentation
@@ -57,7 +76,7 @@ lssvc_gpu.dump(filepath='model', only_hyperparams=False)       # Test dumping
 lssvc_gpu2   = LSSVC_GPU.load(filepath='model')                # Test loading
 y_lssvc_gpu2 = lssvc_gpu2.predict(X_ts)
 
-# Get Results
+# 7. Evaluate Classifiers
 
 print('Results - OLS')
 cm_ols = confusion_matrix(y_ts, y_ols.T)
@@ -88,3 +107,5 @@ print('Results - MLP')
 cm_mlp = confusion_matrix(y_ts, y_mlp)
 print(cm_mlp)
 print(compute_indices(cm_mlp)[0])
+
+#################################
