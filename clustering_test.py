@@ -17,7 +17,7 @@ from toolbox.learning.prototype_based.wta import WinnerTakesAllClustering
 
 from toolbox.learning.prototype_based.wta import WinnerTakesAllClassifier
 
-# from toolbox.evaluation.classification import confusion_matrix, compute_indices
+# from toolbox.evaluation.clustering import compute_indices
 
 # 1. Load dataSet
 
@@ -38,7 +38,7 @@ X_norm = normalize(X_raw, norm_type = 'z_score', X_ref = X_raw)
 
 # 6. Build Model
 
-Nk = 10 # Define number of prototypes
+Nk = 5 # Define number of prototypes
 
 wtaCluster = WinnerTakesAllClustering(Nprot = Nk)
 wtaCluster.fit(X_norm)
@@ -57,3 +57,7 @@ plt.scatter(X_norm[:,0], X_norm[:,1], c='indigo')
 plt.scatter(wtaCluster.Cx.T[:,0], wtaCluster.Cx.T[:,1], c='crimson')
 plt.title(f'Dados e {Nk} Protótipos', fontsize = 15)
 plt.legend(['Dados', 'Prototipos'])
+
+# 8. Evaluate
+
+#################################

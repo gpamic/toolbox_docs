@@ -1,33 +1,48 @@
-# 0. Import Libraries
+#####################  0. Import Libraries
 
 import sys
 sys.path.insert(0,'..')
 
+#######
+
 import matplotlib.pyplot as plt
 import seaborn as sns
 sns.set_style("whitegrid")
+
+#######
 
 from toolbox.datasets import classification_data_loader
 
 from toolbox.preprocessing import hold_out
 from toolbox.preprocessing.encoding import class_label_encode
 from toolbox.preprocessing.normalization import normalize
+from toolbox.preprocessing.preprocess_sample import preprocess_input
+from toolbox.preprocessing.preprocess_sample import preprocess_output
+
+#######
 
 from toolbox.evaluation.classification import confusion_matrix, compute_indices
 
+#######
+
 from toolbox.learning.linear.ols import OrdinaryLeastSquare
+
 # from toolbox.learning.neural_networks.supervised.models.elm import ExtremeLearningMachine
 # from toolbox.learning.neural_networks.supervised.models.mlp import MultiLayerPerceptron
+
 # from toolbox.learning.svm.LSSVC import LSSVC
 # from toolbox.learning.svm.LSSVC_GPU import LSSVC_GPU
-from toolbox.learning.prototype_based.wta import WinnerTakesAllClassifier
-from toolbox.learning.prototype_based.knn import kNearestNeighbors
 
-# 1. Load dataSet
+from toolbox.learning.prototype_based.knn import kNearestNeighbors
+from toolbox.learning.prototype_based.wta import WinnerTakesAllClassifier
+from toolbox.learning.prototype_based.ng  import NeuralGasClassifier
+from toolbox.learning.prototype_based.som import SelfOrganizingMapsClassifier
+
+##################### 1. Load dataSet
 
 X_raw, Y = classification_data_loader.load_dataset(dataset='iris')
 
-# 2. Get dataset's info (number of samples, attributes, classes)
+##################### 2. Get dataset's info (number of samples, attributes, classes)
 
 ds_info = classification_data_loader.extract_info(X_raw, Y)
 N = ds_info['n_samples']
@@ -36,21 +51,29 @@ Nc = ds_info['n_outputs']
 
 print('Samples: ' + str(N) + ' Attributes: ' + str(p) + ' Classes: ' + str(Nc))
 
-# 3. Pre-process labels
+##################### 3. Pre-process labels
 
 Y = class_label_encode(Y, Nc, label_type='bipolar')
 
-# 4. Split Data Between Train and Test 
+##################### 4. Split Data Between Train and Test 
 
 Xtr_raw, y_tr, Xts_raw, y_ts = hold_out.random_subsampling(X = X_raw, 
                                                            Y = Y, 
                                                            train_size=0.8, 
-                                                           random_state=1)
-# 5. Normalize data
+                                                           random_state=2)
+##################### 5. Normalize data
 
 X_tr = normalize(Xtr_raw, norm_type='z_score')
 X_ts = normalize(Xts_raw, norm_type='z_score', X_ref = Xtr_raw)
 X = normalize(X_raw, norm_type='z_score',X_ref = Xtr_raw)
+
+X_tr2 = preprocess_input(X_tr, in_row=True, bias=False)
+y_tr2 = preprocess_output(y_tr, in_row=True)
+
+Ntr = X_tr2.shape[1]
+
+X_ts2 = preprocess_input(X_ts, in_row=True, bias=False)
+y_ts2 = preprocess_output(y_ts, in_row=True)
 
 # # Verify data pattern
 
@@ -64,12 +87,16 @@ X = normalize(X_raw, norm_type='z_score',X_ref = Xtr_raw)
 # print(y_tr[0:5,:])
 # print('')
 
-# 6. Model Build and Label Estimation
+##################### 6. Model Build and Label Estimation
+
+### LINEAR
 
 # OLS experimentation
 ols = OrdinaryLeastSquare()
 ols.fit(X_tr, y_tr)
 y_ols = ols.predict(X_ts)
+
+### NEURAL NETWORKS
 
 # # ELM experimentation
 # elm = ExtremeLearningMachine()
@@ -82,6 +109,8 @@ y_ols = ols.predict(X_ts)
 # mlp.fit(X=X_tr, Y=y_tr, Xv=X_tr, Yv=y_tr, NPL=NPL, epochs=20, 
 #         n_batches=1, alpha=1e-2, decay=0, momentum=0, l2=0, dropout_percent=0)
 # y_mlp = mlp.predict(X_ts)[-1]
+
+### SVM
 
 # # LSSVC experimentation
 # lssvc = LSSVC()
@@ -98,23 +127,53 @@ y_ols = ols.predict(X_ts)
 # lssvc_gpu2   = LSSVC_GPU.load(filepath='model') # Load the model
 # y_lssvc_gpu2 = lssvc_gpu2.predict(X_ts) # Predict using loaded model
 
-# WTA experimentation
-wta = WinnerTakesAllClassifier(Nprot = 10)
-wta.fit(X_tr,y_tr)
-y_wta = wta.predict(X_ts)
+### PROTOTYPE BASED
 
-plt.figure(figsize=(10,10))
-plt.scatter(X[:,0], X[:,1], c='indigo')
-plt.scatter(wta.Cx.T[:,0], wta.Cx.T[:,1], c='crimson')
-plt.title(f'Dados e {wta.Nk} Protótipos', fontsize = 15)
-plt.legend(['Dados', 'Prototipos'])
+Nk = 9
+Nneig = 1
 
 # KNN experimentation
 knn = kNearestNeighbors(K=2)
 knn.fit(X_tr,y_tr)
 y_knn = knn.predict(X_ts)
 
-# 7. Evaluate Classifiers
+# WTA experimentation
+wta = WinnerTakesAllClassifier(Nprot = Nk, K = Nneig)
+wta.fit(X_tr,y_tr)
+y_wta = wta.predict(X_ts)
+
+# WTA Visualization
+plt.figure(figsize=(10,10))
+plt.scatter(X[:,0], X[:,1], c='indigo')
+plt.scatter(wta.Cx.T[:,0], wta.Cx.T[:,1], c='crimson')
+plt.title(f'Dados e {wta.Nk} Protótipos', fontsize = 15)
+plt.legend(['Dados', 'Prototipos'])
+
+# NG experimentation
+ng = NeuralGasClassifier(Nprot = Nk, K = Nneig)
+ng.fit(X_tr, y_tr)
+y_ng = ng.predict(X_ts)
+
+# NG Visualization
+plt.figure(figsize=(10,10))
+plt.scatter(X[:,0], X[:,1], c='indigo')
+plt.scatter(ng.Cx.T[:,0], ng.Cx.T[:,1], c='crimson')
+plt.title(f'Dados e {ng.Nk} Protótipos', fontsize = 15)
+plt.legend(['Dados', 'Prototipos'])
+
+# SOM experimentation
+som = SelfOrganizingMapsClassifier(Nprot = (3,3))
+som.fit(X_tr,y_tr)
+y_som = som.predict(X_ts)
+
+# SOM Visualization
+plt.figure(figsize=(10,10))
+plt.scatter(X[:,0], X[:,1], c='indigo')
+plt.scatter(som.Cx.T[:,0], som.Cx.T[:,1], c='crimson')
+plt.title(f'Dados e {som.Nk} Protótipos', fontsize = 15)
+plt.legend(['Dados', 'Prototipos'])
+
+##################### 7. Evaluate Classifiers
 
 print('Results - OLS')
 cm_ols = confusion_matrix(y_ts, y_ols.T)
@@ -146,14 +205,24 @@ print(compute_indices(cm_ols)[0])
 # print(cm_lssvc_gpu2)
 # print(compute_indices(cm_lssvc_gpu2)[0])
 
+print('Results - KNN')
+cm_knn = confusion_matrix(y_ts, y_knn.T)
+print(cm_knn)
+print(compute_indices(cm_knn)[0])
+
 print('Results - WTA')
 cm_wta = confusion_matrix(y_ts, y_wta.T)
 print(cm_wta)
 print(compute_indices(cm_wta)[0])
 
-print('Results - KNN')
-cm_knn = confusion_matrix(y_ts, y_knn.T)
-print(cm_knn)
-print(compute_indices(cm_knn)[0])
+print('Results - NG')
+cm_ng = confusion_matrix(y_ts, y_ng.T)
+print(cm_ng)
+print(compute_indices(cm_ng)[0])
+
+print('Results - SOM')
+cm_som = confusion_matrix(y_ts, y_som.T)
+print(cm_som)
+print(compute_indices(cm_som)[0])
 
 #################################
